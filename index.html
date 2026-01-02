@@ -174,6 +174,16 @@
             }
         }
     </style>
+    <style>
+        /* Add styles for dynamic carrots */
+        .carrot-active {
+            position: absolute;
+            font-size: 60px;
+            pointer-events: none;
+            z-index: 5;
+            line-height: 1;
+        }
+    </style>
 </head>
 
 <body>
@@ -201,11 +211,20 @@
         let currentAccessoryIndex = 0;
         const accessories = ['', '🎀', '🕶️', '🎩'];
 
+        // Physics State
+        const carrots = []; // { x, y, vy, el, isEaten }
+        const gravity = 0.8;
+        const bounceDamping = 0.6;
+        const floorY = window.innerHeight - 200; // Approximate floor level above buttons
+        let bunnyX = window.innerWidth / 2;
+        let targetBunnyX = bunnyX;
+
         // --- Elements ---
         const bunnyContainer = document.getElementById('bunny-container'); // Animation target
         const bunnyEl = document.getElementById('bunny');
         const accessoryEl = document.getElementById('accessory');
         const bodyEl = document.body;
+        const gameAreaEl = document.getElementById('game-area');
         const particlesContainer = document.getElementById('particles');
 
         // --- Audio System ---
@@ -277,6 +296,11 @@
             playTone(400, 'sine', 0.05, 0);
         }
 
+        function playBounceSound() {
+            if (!audioContext) return;
+            playTone(150, 'sine', 0.1, 0);
+        }
+
         // --- Visual Effects ---
         function spawnParticles(emoji, x, y) {
             const el = document.createElement('div');
@@ -316,9 +340,8 @@
         function feed() {
             if (isSleeping) return; // Can't eat while sleeping
             initAudio();
-            playCrunch();
-            animateBunny('bouncing');
-            spawnParticles('❤️');
+            // Traditional button feed - just spawn a carrot above the bunny
+            spawnCarrot(bunnyX, 100);
         }
 
         function pet() {
@@ -351,6 +374,136 @@
             spawnParticles(accessories[currentAccessoryIndex] || '💨'); // Puff if removing
         }
 
+        // --- Physics & Game Loop ---
+        function spawnCarrot(x, y) {
+            const el = document.createElement('div');
+            el.classList.add('carrot-active');
+            el.textContent = '🥕';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.body.appendChild(el);
+
+            carrots.push({
+                x: x,
+                y: y,
+                vy: 0,
+                el: el,
+                isEaten: false
+            });
+        }
+
+        function updatePhysics() {
+            // Update Carrots
+            for (let i = carrots.length - 1; i >= 0; i--) {
+                const c = carrots[i];
+                if (c.isEaten) continue;
+
+                c.vy += gravity;
+                c.y += c.vy;
+
+                // Floor collision (simplified floor)
+                // We use fixed floorY but really we want it to hit the "ground" where bunny stands
+                // The bunny is centered vertically in game-area? No, game-area is center, bunny is inside.
+                // Let's dynamically check bunny's bottom position for a more accurate floor
+                const bunnyRect = bunnyContainer.getBoundingClientRect();
+                const groundLevel = bunnyRect.bottom - 20; // Slightly up so it looks like it hits feet
+
+                if (c.y > groundLevel) {
+                    c.y = groundLevel;
+                    c.vy *= -bounceDamping;
+
+                    // Stop bouncing if slow
+                    if (Math.abs(c.vy) < 2) {
+                        c.vy = 0;
+                    } else {
+                        // Play soft thud on bounce?
+                        // playBounceSound(); 
+                    }
+                }
+
+                c.el.style.top = c.y + 'px';
+
+                // Cleanup fallen off screen (safety)
+                if (c.y > window.innerHeight) {
+                    c.el.remove();
+                    carrots.splice(i, 1);
+                }
+            }
+
+            // Target Logic: Find nearest carrot on the ground (or low enough)
+            let nearestDist = Infinity;
+            let target = null;
+
+            for (const c of carrots) {
+                if (Math.abs(c.vy) < 1) { // Only chase mostly stopped carrots (easier for kids?) OR chase all?
+                    // Let's chase all, but prioritize closest
+                    const dist = Math.abs(c.x - bunnyX);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        target = c;
+                    }
+                }
+            }
+
+            // Move Bunny
+            if (target && !isSleeping) {
+                targetBunnyX = target.x;
+            } else {
+                // If no carrots, maybe return to center? or stay put.
+                // Let's stay put to avoid annoying sliding back and forth.
+            }
+
+            // Lerp bunny position
+            // We implement movement by setting translateX on the container.
+            // But we need to keep track of "bunnyX" (center of bunny) in world space.
+            // Initial bunnyX is center of screen.
+
+            // Speed factor
+            const speed = 0.05;
+            bunnyX += (targetBunnyX - bunnyX) * speed;
+
+            // Apply to specific translation calculation
+            // If bunnyX is 500 and center is 500, translate is 0.
+            // translate = bunnyX - window.innerWidth / 2;
+            const screenCenter = window.innerWidth / 2;
+            const translateX = bunnyX - screenCenter;
+
+            bunnyContainer.style.transform = `translateX(${translateX}px)`;
+
+            // Flip bunny to face direction?
+            // Not in requirements, but nice to have. Might conflict with wiggles. 
+            // Skipping flip for now to keep simple.
+
+            // Collision/Eating
+            if (target) {
+                if (Math.abs(target.x - bunnyX) < 50 && Math.abs(target.y - (bunnyContainer.getBoundingClientRect().bottom - 50)) < 80) {
+                    // Eat it
+                    eatCarrot(target);
+                }
+            }
+        }
+
+        function eatCarrot(carrot) {
+            if (carrot.isEaten) return;
+            carrot.isEaten = true;
+            carrot.el.remove();
+            // remove from array
+            const idx = carrots.indexOf(carrot);
+            if (idx > -1) carrots.splice(idx, 1);
+
+            playCrunch();
+            animateBunny('bouncing');
+            spawnParticles('❤️', carrot.x, carrot.y);
+        }
+
+        function gameLoop() {
+            updatePhysics();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start loop
+        requestAnimationFrame(gameLoop);
+
         // --- Input Handling ---
 
         function handleInteraction(handler) {
@@ -359,6 +512,23 @@
                 handler();
             };
         }
+
+        // Sky tap to spawn
+        gameAreaEl.addEventListener('touchstart', (e) => {
+            if (isSleeping) return;
+            // Don't spawn if tapping bunny directly (that's pet)
+            if (e.target.closest('#bunny-container')) return;
+
+            for (let i = 0; i < e.touches.length; i++) {
+                spawnCarrot(e.touches[i].clientX, e.touches[i].clientY);
+            }
+        }, { passive: false });
+
+        gameAreaEl.addEventListener('mousedown', (e) => {
+            if (isSleeping) return;
+            if (e.target.closest('#bunny-container')) return;
+            spawnCarrot(e.clientX, e.clientY);
+        });
 
         document.getElementById('btn-feed').addEventListener('click', feed);
         document.getElementById('btn-feed').addEventListener('touchstart', handleInteraction(feed), { passive: false });
