@@ -183,12 +183,116 @@
             z-index: 5;
             line-height: 1;
         }
+
+        /* Disco Mode Styles */
+        body.disco {
+            animation: disco-bg 2s infinite alternate;
+        }
+
+        @keyframes disco-bg {
+            0% {
+                background: #ff00cc;
+            }
+
+            25% {
+                background: #3333ff;
+            }
+
+            50% {
+                background: #00ccff;
+            }
+
+            75% {
+                background: #33ff33;
+            }
+
+            100% {
+                background: #ffaa00;
+            }
+        }
+
+        #disco-ball {
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 100px;
+            transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        body.disco #disco-ball {
+            top: 20px;
+            animation: spin 5s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: translateX(-50%) rotate(0deg);
+            }
+
+            to {
+                transform: translateX(-50%) rotate(360deg);
+            }
+        }
+
+        .spin-move {
+            animation: spin-once 0.5s ease;
+        }
+
+        @keyframes spin-once {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .jump-move {
+            animation: jump-once 0.3s ease;
+        }
+
+        @keyframes jump-once {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-50px);
+            }
+        }
+
+        .shake-move {
+            animation: shake-once 0.3s ease;
+        }
+
+        @keyframes shake-once {
+
+            0%,
+            100% {
+                transform: skewX(0);
+            }
+
+            25% {
+                transform: skewX(-20deg);
+            }
+
+            75% {
+                transform: skewX(20deg);
+            }
+        }
     </style>
 </head>
 
 <body>
 
     <div id="particles"></div>
+    <div id="disco-ball">🪩</div>
 
     <div id="game-area">
         <div id="bunny-container">
@@ -201,12 +305,14 @@
         <button id="btn-feed" class="btn">🥕</button>
         <button id="btn-pet" class="btn">🖐️</button>
         <button id="btn-dress" class="btn">🎩</button>
+        <button id="btn-music" class="btn">🎵</button>
         <button id="btn-sleep" class="btn">🌙</button>
     </div>
 
     <script>
         // --- State ---
         let isSleeping = false;
+        let isDanceMode = false;
         let audioContext = null;
         let currentAccessoryIndex = 0;
         const accessories = ['', '🎀', '🕶️', '🎩'];
@@ -226,6 +332,9 @@
         const bodyEl = document.body;
         const gameAreaEl = document.getElementById('game-area');
         const particlesContainer = document.getElementById('particles');
+        const btnFeed = document.getElementById('btn-feed');
+        const btnPet = document.getElementById('btn-pet');
+        const btnDress = document.getElementById('btn-dress');
 
         // --- Audio System ---
         function initAudio() {
@@ -254,6 +363,44 @@
 
             osc.start(audioContext.currentTime + startTime);
             osc.stop(audioContext.currentTime + startTime + duration);
+        }
+
+        function playDrum() {
+            initAudio();
+            // Simple kick drum approximation
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.frequency.setValueAtTime(150, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.5, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.5);
+        }
+
+        function playPiano() {
+            initAudio();
+            // Random note from C Major
+            const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+            const note = notes[Math.floor(Math.random() * notes.length)];
+            playTone(note, 'triangle', 0.5);
+        }
+
+        function playSqueak() {
+            initAudio();
+            // High frequency sweep
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.frequency.setValueAtTime(800, audioContext.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.1);
         }
 
         function playCrunch() {
@@ -329,7 +476,8 @@
 
         function animateBunny(animationClass) {
             // Reset
-            bunnyContainer.classList.remove('bouncing', 'wiggling');
+            bunnyContainer.className = ''; // clear all
+            bunnyContainer.id = 'bunny-container'; // keep id
             // Trigger reflow
             void bunnyContainer.offsetWidth;
             // Add class
@@ -338,22 +486,46 @@
 
         // --- Actions ---
         function feed() {
-            if (isSleeping) return; // Can't eat while sleeping
+            if (isSleeping) return;
+            if (isDanceMode) {
+                playDrum();
+                animateBunny('shake-move');
+                spawnParticles('🥁');
+                return;
+            }
             initAudio();
             // Traditional button feed - just spawn a carrot above the bunny
             spawnCarrot(bunnyX, 100);
         }
 
         function pet() {
-            if (isSleeping) return; // Can't play while sleeping
+            if (isSleeping) return;
+            if (isDanceMode) {
+                playPiano();
+                animateBunny('jump-move');
+                spawnParticles('🎹');
+                return;
+            }
             playGiggle();
             animateBunny('wiggling');
             spawnParticles('✨');
         }
 
+        function dressAction() {
+            if (isSleeping) return;
+            if (isDanceMode) {
+                playSqueak();
+                animateBunny('spin-move');
+                spawnParticles('🎷');
+                return;
+            }
+            toggleAccessory();
+        }
+
         function toggleSleep() {
             isSleeping = !isSleeping;
             if (isSleeping) {
+                if (isDanceMode) toggleDanceMode(); // Turn off dance if sleeping
                 bodyEl.classList.add('night');
                 bunnyEl.textContent = '😴';
                 playLullaby();
@@ -367,11 +539,29 @@
         }
 
         function toggleAccessory() {
-            if (isSleeping) return;
             currentAccessoryIndex = (currentAccessoryIndex + 1) % accessories.length;
             accessoryEl.textContent = accessories[currentAccessoryIndex];
             playPop();
             spawnParticles(accessories[currentAccessoryIndex] || '💨'); // Puff if removing
+        }
+
+        function toggleDanceMode() {
+            if (isSleeping) return;
+            isDanceMode = !isDanceMode;
+
+            if (isDanceMode) {
+                bodyEl.classList.add('disco');
+                btnFeed.textContent = '🥁';
+                btnPet.textContent = '🎹';
+                btnDress.textContent = '🎷';
+                // play disco start sound?
+                playPiano();
+            } else {
+                bodyEl.classList.remove('disco');
+                btnFeed.textContent = '🥕';
+                btnPet.textContent = '🖐️';
+                btnDress.textContent = '🎩';
+            }
         }
 
         // --- Physics & Game Loop ---
@@ -446,7 +636,7 @@
             }
 
             // Move Bunny
-            if (target && !isSleeping) {
+            if (target && !isSleeping && !isDanceMode) { // Don't chase in dance mode
                 targetBunnyX = target.x;
             } else {
                 // If no carrots, maybe return to center? or stay put.
@@ -475,7 +665,7 @@
             // Skipping flip for now to keep simple.
 
             // Collision/Eating
-            if (target) {
+            if (target && !isDanceMode) {
                 if (Math.abs(target.x - bunnyX) < 50 && Math.abs(target.y - (bunnyContainer.getBoundingClientRect().bottom - 50)) < 80) {
                     // Eat it
                     eatCarrot(target);
@@ -515,7 +705,7 @@
 
         // Sky tap to spawn
         gameAreaEl.addEventListener('touchstart', (e) => {
-            if (isSleeping) return;
+            if (isSleeping || isDanceMode) return; // Disable carrot spawn in dance mode
             // Don't spawn if tapping bunny directly (that's pet)
             if (e.target.closest('#bunny-container')) return;
 
@@ -525,7 +715,7 @@
         }, { passive: false });
 
         gameAreaEl.addEventListener('mousedown', (e) => {
-            if (isSleeping) return;
+            if (isSleeping || isDanceMode) return;
             if (e.target.closest('#bunny-container')) return;
             spawnCarrot(e.clientX, e.clientY);
         });
@@ -536,8 +726,11 @@
         document.getElementById('btn-pet').addEventListener('click', pet);
         document.getElementById('btn-pet').addEventListener('touchstart', handleInteraction(pet), { passive: false });
 
-        document.getElementById('btn-dress').addEventListener('click', toggleAccessory);
-        document.getElementById('btn-dress').addEventListener('touchstart', handleInteraction(toggleAccessory), { passive: false });
+        document.getElementById('btn-dress').addEventListener('click', dressAction);
+        document.getElementById('btn-dress').addEventListener('touchstart', handleInteraction(dressAction), { passive: false });
+
+        document.getElementById('btn-music').addEventListener('click', toggleDanceMode);
+        document.getElementById('btn-music').addEventListener('touchstart', handleInteraction(toggleDanceMode), { passive: false });
 
         // Also pet bunny directly (container, to catch clicks even if accessory is there, though accessory is pointer-events: none)
         bunnyContainer.addEventListener('click', pet);
@@ -549,7 +742,6 @@
         // Initialize audio on first interaction if needed
         document.addEventListener('click', initAudio, { once: true });
         document.addEventListener('touchstart', initAudio, { once: true });
-
     </script>
 </body>
 
