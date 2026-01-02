@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pocket Bunny</title>
+    <style>
+        :root {
+            --bg-day-start: #d4fc79;
+            --bg-day-end: #96e6a1;
+            --bg-night-start: #0f2027;
+            --bg-night-end: #203a43;
+            --btn-size: 80px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(120deg, var(--bg-day-start) 0%, var(--bg-day-end) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            transition: background 1s ease;
+        }
+
+        body.night {
+            background: linear-gradient(120deg, var(--bg-night-start) 0%, var(--bg-night-end) 100%);
+        }
+
+        #game-area {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            width: 100%;
+        }
+
+        /* Bunny Container (holds bunny + accessory) */
+        #bunny-container {
+            position: relative;
+            display: inline-block;
+            /* Move animations to container so they move together */
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* Prevent default touch actions on the bunny so we can handle them manually */
+            touch-action: manipulation;
+        }
+
+        #bunny {
+            font-size: 150px;
+            cursor: pointer;
+            line-height: 1;
+            /* Ensure tight bounding box */
+            /* Removed transition/touch-action from here as they are on container now */
+        }
+
+        #accessory {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 80px;
+            pointer-events: none;
+            /* Let clicks pass through to bunny */
+            z-index: 10;
+        }
+
+        /* Animations applied to container */
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-30px);
+            }
+        }
+
+        @keyframes wiggle {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(-10deg);
+            }
+
+            75% {
+                transform: rotate(10deg);
+            }
+        }
+
+        .bouncing {
+            animation: bounce 0.5s ease;
+        }
+
+        .wiggling {
+            animation: wiggle 0.4s ease;
+        }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding-bottom: 40px;
+            width: 100%;
+        }
+
+        .btn {
+            width: var(--btn-size);
+            height: var(--btn-size);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            font-size: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.1s ease, background 0.3s;
+            /* Prevent weird highlight on mobile tap */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn:active {
+            transform: scale(0.9);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        /* Particles container */
+        #particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            font-size: 30px;
+            animation: floatUp 1.5s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(0.5);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-100px) scale(1);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="particles"></div>
+
+    <div id="game-area">
+        <div id="bunny-container">
+            <div id="accessory"></div>
+            <div id="bunny">🐰</div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button id="btn-feed" class="btn">🥕</button>
+        <button id="btn-pet" class="btn">🖐️</button>
+        <button id="btn-dress" class="btn">🎩</button>
+        <button id="btn-sleep" class="btn">🌙</button>
+    </div>
+
+    <script>
+        // --- State ---
+        let isSleeping = false;
+        let audioContext = null;
+        let currentAccessoryIndex = 0;
+        const accessories = ['', '🎀', '🕶️', '🎩'];
+
+        // --- Elements ---
+        const bunnyContainer = document.getElementById('bunny-container'); // Animation target
+        const bunnyEl = document.getElementById('bunny');
+        const accessoryEl = document.getElementById('accessory');
+        const bodyEl = document.body;
+        const particlesContainer = document.getElementById('particles');
+
+        // --- Audio System ---
+        function initAudio() {
+            if (!audioContext) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContext();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        function playTone(freq, type, duration, startTime = 0) {
+            if (!audioContext) return;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioContext.currentTime + startTime);
+
+            gain.gain.setValueAtTime(0.1, audioContext.currentTime + startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + startTime + duration);
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc.start(audioContext.currentTime + startTime);
+            osc.stop(audioContext.currentTime + startTime + duration);
+        }
+
+        function playCrunch() {
+            if (!audioContext) return;
+            // Simulated crunch using noise
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.1);
+
+            gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.1);
+        }
+
+        function playGiggle() {
+            initAudio(); // Ensure context is ready
+            playTone(600, 'sine', 0.1, 0);
+            playTone(800, 'sine', 0.1, 0.1);
+            playTone(600, 'sine', 0.15, 0.2);
+        }
+
+        function playLullaby() {
+            initAudio();
+            // C Major chord arpeggio
+            playTone(261.63, 'sine', 1, 0);   // C4
+            playTone(329.63, 'sine', 1, 0.2); // E4
+            playTone(392.00, 'sine', 1, 0.4); // G4
+        }
+
+        function playPop() {
+            initAudio();
+            playTone(400, 'sine', 0.05, 0);
+        }
+
+        // --- Visual Effects ---
+        function spawnParticles(emoji, x, y) {
+            const el = document.createElement('div');
+            el.classList.add('particle');
+            el.textContent = emoji;
+            // Randomize slight handle
+            const randomX = (Math.random() - 0.5) * 50;
+
+            // If x/y not provided (e.g. from button click), center them
+            if (x === undefined || y === undefined) {
+                const rect = bunnyContainer.getBoundingClientRect();
+                x = rect.left + rect.width / 2;
+                y = rect.top + rect.height / 2;
+            }
+
+            el.style.left = (x + randomX) + 'px';
+            el.style.top = y + 'px';
+
+            particlesContainer.appendChild(el);
+
+            // Clean up
+            setTimeout(() => {
+                el.remove();
+            }, 1500);
+        }
+
+        function animateBunny(animationClass) {
+            // Reset
+            bunnyContainer.classList.remove('bouncing', 'wiggling');
+            // Trigger reflow
+            void bunnyContainer.offsetWidth;
+            // Add class
+            bunnyContainer.classList.add(animationClass);
+        }
+
+        // --- Actions ---
+        function feed() {
+            if (isSleeping) return; // Can't eat while sleeping
+            initAudio();
+            playCrunch();
+            animateBunny('bouncing');
+            spawnParticles('❤️');
+        }
+
+        function pet() {
+            if (isSleeping) return; // Can't play while sleeping
+            playGiggle();
+            animateBunny('wiggling');
+            spawnParticles('✨');
+        }
+
+        function toggleSleep() {
+            isSleeping = !isSleeping;
+            if (isSleeping) {
+                bodyEl.classList.add('night');
+                bunnyEl.textContent = '😴';
+                playLullaby();
+                spawnParticles('💤');
+            } else {
+                bodyEl.classList.remove('night');
+                bunnyEl.textContent = '🐰';
+                // Wake up sound?
+                playTone(523.25, 'triangle', 0.3); // C5
+            }
+        }
+
+        function toggleAccessory() {
+            if (isSleeping) return;
+            currentAccessoryIndex = (currentAccessoryIndex + 1) % accessories.length;
+            accessoryEl.textContent = accessories[currentAccessoryIndex];
+            playPop();
+            spawnParticles(accessories[currentAccessoryIndex] || '💨'); // Puff if removing
+        }
+
+        // --- Input Handling ---
+
+        function handleInteraction(handler) {
+            return (e) => {
+                e.preventDefault(); // Prevent ghost clicks
+                handler();
+            };
+        }
+
+        document.getElementById('btn-feed').addEventListener('click', feed);
+        document.getElementById('btn-feed').addEventListener('touchstart', handleInteraction(feed), { passive: false });
+
+        document.getElementById('btn-pet').addEventListener('click', pet);
+        document.getElementById('btn-pet').addEventListener('touchstart', handleInteraction(pet), { passive: false });
+
+        document.getElementById('btn-dress').addEventListener('click', toggleAccessory);
+        document.getElementById('btn-dress').addEventListener('touchstart', handleInteraction(toggleAccessory), { passive: false });
+
+        // Also pet bunny directly (container, to catch clicks even if accessory is there, though accessory is pointer-events: none)
+        bunnyContainer.addEventListener('click', pet);
+        bunnyContainer.addEventListener('touchstart', handleInteraction(pet), { passive: false });
+
+        document.getElementById('btn-sleep').addEventListener('click', toggleSleep);
+        document.getElementById('btn-sleep').addEventListener('touchstart', handleInteraction(toggleSleep), { passive: false });
+
+        // Initialize audio on first interaction if needed
+        document.addEventListener('click', initAudio, { once: true });
+        document.addEventListener('touchstart', initAudio, { once: true });
+
+    </script>
+</body>
+
+</html>

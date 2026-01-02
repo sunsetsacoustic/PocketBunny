@@ -1,0 +1,39 @@
+Project: Build a "Pocket Bunny" virtual pet game for a 4-year-old.
+
+Tech Stack:
+
+Create a single index.html file that contains all HTML, CSS, and JavaScript.
+
+No external assets (use Emojis for graphics).
+
+No external sound files (synthesize cute beep/boop/crunch sounds using the standard Web Audio API).
+
+Visual Layout:
+
+Center: A massive, animated Bunny Emoji (🐰) in the middle of the screen.
+
+Background: A soft, pastel "meadow green" gradient.
+
+Controls: A row of 3 giant circular buttons at the bottom.
+
+🥕 Carrot (Feed)
+
+🖐️ Hand (Pet/Tickle)
+
+🌙 Moon (Sleep)
+
+Interactions & Logic:
+
+Feeding: When the Carrot button is tapped, the Bunny should bounce up and down, and a "Crunch" sound should play. Little heart particles should float up.
+
+Petting: When the Hand button (or the Bunny itself) is tapped, the Bunny should wiggle/shake, and a high-pitched "Giggle" sound should play.
+
+Sleeping: When the Moon button is tapped, toggle "Night Mode." The background turns dark blue, the Bunny changes to a "Sleeping Face" emoji (😴), and 'Zzz' particles float up. A soft lullaby chord plays.
+
+Kids Mode Requirements (Crucial):
+
+Touch Handling: Use touchstart listeners to ensure it feels responsive on an iPad/Tablet.
+
+Lock Down: Add CSS to body to prevent scrolling, zooming, or text selection (user-select: none, touch-action: none). It needs to feel like a native app, not a website.
+
+Animations: Use CSS transitions for everything. The buttons should squash/squeeze when pressed (juice).

@@ -1,0 +1,4 @@
+Option 1: The "Dress-Up" Update (Visuals)
+Kids love customizing. This update adds a button to cycle through accessories (Hats, Glasses, Bows) that sit on the bunny's head.
+
+Cursor Prompt: "Add a new button with a 🎩 icon. When clicked, it should cycle through accessories on the bunny: a Red Bow, Cool Sunglasses, a Top Hat, and 'None'. Implement this by overlaying a second emoji absolutely positioned on top of the bunny emoji. Make sure the accessory stays on the bunny even when it bounces."
